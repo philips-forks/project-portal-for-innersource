@@ -17,10 +17,6 @@ function readableRepoName (sName) {
 	if (aWords.length === 1) {
 		aWords = sName.split("_");
 	}
-	// uppercase words
-	aWords = aWords.map(
-		(sWord) => sWord.charAt(0).toUpperCase() + sWord.slice(1)
-	);
 	// replace minus with space
 	return aWords.join(" ");
 }
