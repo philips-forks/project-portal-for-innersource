@@ -1,0 +1,175 @@
+@using InnerSourcePortal.Models
+@using InnerSourcePortal.Services
+@using InnerSourcePortal.Shared
+@using Microsoft.AspNetCore.Components
+@using System.Timers
+@inject IRepositoryService _repositoryService
+
+@if (_repositories == null)
+{
+    <p><em>Loading...</em></p>
+}
+else
+{
+    <Modal IsOpen="@_isModalOpen" HeaderClass="flex justify-between bg-blue-500 md:p-4 lg:p-6" FooterClass="bg-blue-500 cursor-pointer">
+        <Header>
+            @if (_selectedRepo != null)
+            {
+                @_selectedRepo.Name
+            }
+            <button type="button" class="" @onclick="@CloseModal">&times;</button>
+        </Header>
+        <Body>
+            @if (_selectedRepo != null)
+            {
+                @_selectedRepo.Language
+            }
+        </Body>
+        <Footer>
+            @if (_selectedRepo != null)
+            {
+                <a href="@_selectedRepo.HtmlUrl">
+                    <div class="my-3 hover:underline">
+                        Contribute
+                    </div>
+                </a>
+            }
+        </Footer>
+    </Modal>
+
+    <div class="min-h-screen flex items-center px-4">
+        <div class='overflow-x-auto w-full'>
+            <div>
+                <label for="search">Search</label>
+                <input @bind-value="Data" @bind-value:event="oninput" 
+                       @onkeyup="@HandleKeyUp" type="text" id="search"/>
+                @Data2
+            </div>
+            <table class='mx-auto max-w-4xl w-full whitespace-nowrap rounded-lg bg-white divide-y divide-gray-300'>
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Name
+                        </th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Description
+                        </th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Language
+                        </th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Stars
+                        </th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Issues
+                        </th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Forks
+                        </th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Score
+                        </th>
+                        <th class="relative px-6 py-3">
+                            <span class="sr-only">Contribute</span>
+                        </th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-200">
+                    @foreach (Repository repo in _repositories)
+                    {
+                        <tr @onclick="() => ShowDetailedRepositoryModal(repo)" class="cursor-pointer">
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                <div class="flex items-center">
+                                    <div class="flex-shrink-0 h-10 w-10">
+                                        <img class="h-10 w-10 rounded-full" src="@repo.Owner.AvatarUrl" alt="">
+                                    </div>
+                                    <div class="ml-4">
+                                        <div class="text-sm font-medium text-gray-900">
+                                            @repo.Name
+                                        </div>
+                                        <div class="text-sm text-gray-500">
+                                            <a href="@repo.HtmlUrl" class="hover:underline">@repo.FullName</a>
+                                        </div>
+                                    </div>
+                                </div>
+                            </td>
+                            <td class="px-6 py-4 whitespace-normal">
+                                <div class="text-sm text-gray-900">@repo.Description</div>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">
+                                    @repo.Language
+                                </span>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                @repo.StargazersCount
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                @repo.OpenIssuesCount
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                @repo.ForksCount
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                @repo.Score
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                <a href="@repo.Url" class="text-indigo-600 hover:text-indigo-900">Contribute</a>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+
+        </div>
+    </div>
+}
+
+@code {
+    private Repository[] _repositories;
+    private List<string> _languages;
+    bool _isModalOpen = false;
+    private Repository _selectedRepo;
+    public string Data { get; set; }   
+    public string Data2 { get; set; }  
+    private Timer aTimer;
+
+    public void ShowDetailedRepositoryModal(Repository repo)
+    {
+        _isModalOpen = true;
+        _selectedRepo = repo;
+    }
+
+    public void CloseModal()
+    {
+        _isModalOpen = false;
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        _repositories = await _repositoryService.GetAllRepositories().ConfigureAwait(false);
+        _languages = await _repositoryService.GetAllLanguagesFromRepos(_repositories).ConfigureAwait(false);
+        aTimer = new Timer(200);
+        aTimer.Elapsed += OnUserFinish;
+        aTimer.AutoReset = false;
+    }
+
+    void HandleKeyUp(KeyboardEventArgs e)
+    {
+    // remove previous one
+        aTimer.Stop();
+
+    // new timer
+        aTimer.Start();        
+    }    
+
+    private void OnUserFinish(Object source, ElapsedEventArgs e)
+    {
+        InvokeAsync( () =>
+        {
+            Data2 = $"User has finished: {Data}";
+            StateHasChanged();
+        });
+    }
+
+}
