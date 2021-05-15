@@ -2,7 +2,6 @@
 @using InnerSourcePortal.Services
 @using InnerSourcePortal.Shared
 @using Microsoft.AspNetCore.Components
-@using System.Timers
 @inject IRepositoryService _repositoryService
 
 @if (_repositories == null)
@@ -40,10 +39,29 @@ else
     <div class="min-h-screen flex items-center px-4">
         <div class='overflow-x-auto w-full'>
             <div>
-                <label for="search">Search</label>
-                <input @bind-value="Data" @bind-value:event="oninput" 
-                       @onkeyup="@HandleKeyUp" type="text" id="search"/>
-                @Data2
+                <label for="search">Search:</label>
+                <input @bind-value="Text" @bind-value:event="oninput" type="text" id="search"/>
+                Total Items: @_totalItems
+                
+                <select @bind="SelectedLanguage">
+                    @if (_languages != null)
+                    {
+                        @foreach (string language in _languages)
+                        {
+                            <option value="@language">@language</option>
+                        }
+                    }
+                </select>
+                
+                <select @bind="SortType">
+                    @if (_sortTypes != null)
+                    {
+                        @foreach (string sortType in _sortTypes)
+                        {
+                            <option value="@sortType">@sortType</option>
+                        }
+                    }
+                </select>
             </div>
             <table class='mx-auto max-w-4xl w-full whitespace-nowrap rounded-lg bg-white divide-y divide-gray-300'>
                 <thead class="bg-gray-50">
@@ -111,7 +129,7 @@ else
                                 @repo.ForksCount
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                @repo.Score
+                                @repo.InnerSourceMetadata.Score
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                                 <a href="@repo.Url" class="text-indigo-600 hover:text-indigo-900">Contribute</a>
@@ -126,50 +144,155 @@ else
 }
 
 @code {
-    private Repository[] _repositories;
+    private List<Repository> _repositories;
+    private IEnumerable<Repository> _originalRepositories;
     private List<string> _languages;
+    private List<string> _sortTypes = new List<string>
+    {
+        "Name",
+        "Activity",
+        "Stars",
+        "Watchers",
+        "Issues",
+    };
+
+    private string _sortType;
+
+    private string SortType
+    {
+        get => _sortType;
+        set
+        {
+            if (value != _sortType)
+            {
+                _sortType = value;
+                InvokeAsync(LoadRepositoriesBasedOnSortType);
+            }
+        }
+    }
+
+
+    private string _selectedLanguage;
+
+    private string SelectedLanguage
+    {
+        get => _selectedLanguage;
+        set
+        {
+            if (value != _selectedLanguage)
+            {
+                _selectedLanguage = value;
+                InvokeAsync(LoadRepositoriesForSpecificLanguageAsync);
+            }
+        }
+    }
     bool _isModalOpen = false;
     private Repository _selectedRepo;
-    public string Data { get; set; }   
-    public string Data2 { get; set; }  
-    private Timer aTimer;
+    private string _text;
+    private bool _queued = false;
+    private bool _loading = false;
+    private int _totalItems;
 
-    public void ShowDetailedRepositoryModal(Repository repo)
+    private void ShowDetailedRepositoryModal(Repository repo)
     {
         _isModalOpen = true;
         _selectedRepo = repo;
     }
 
-    public void CloseModal()
+    private void CloseModal()
     {
         _isModalOpen = false;
     }
 
     protected override async Task OnInitializedAsync()
     {
-        _repositories = await _repositoryService.GetAllRepositories().ConfigureAwait(false);
+        _originalRepositories = await _repositoryService.GetAllRepositories().ConfigureAwait(false);
+        _repositories = _originalRepositories.ToList();
         _languages = await _repositoryService.GetAllLanguagesFromRepos(_repositories).ConfigureAwait(false);
-        aTimer = new Timer(200);
-        aTimer.Elapsed += OnUserFinish;
-        aTimer.AutoReset = false;
     }
 
-    void HandleKeyUp(KeyboardEventArgs e)
+    private string Text
     {
-    // remove previous one
-        aTimer.Stop();
-
-    // new timer
-        aTimer.Start();        
-    }    
-
-    private void OnUserFinish(Object source, ElapsedEventArgs e)
-    {
-        InvokeAsync( () =>
+        get => _text;
+        set
         {
-            Data2 = $"User has finished: {Data}";
-            StateHasChanged();
-        });
+            if (value != _text)
+            {
+                _text = value;
+                InvokeAsync(OnSearchAsync);
+            }
+        }
+    }
+
+    private void Reset()
+    {
+        _totalItems = 0;
+        _text = string.Empty;
+        _repositories = _originalRepositories.ToList();
+        StateHasChanged();
+    }
+
+    private async Task OnSearchAsync()
+    {
+        if (!string.IsNullOrWhiteSpace(_text))
+        {
+            if (_loading)
+            {
+                _queued = true;
+                return;
+            }
+
+            do
+            {
+                string textToSearch = _text.ToLowerInvariant();
+                _loading = true;
+                _queued = false;
+                _repositories = _originalRepositories.Where(r =>
+                    r.Name.ToLowerInvariant().Contains(textToSearch) ||
+                    r.InnerSourceMetadata.Topics.Any(s => s.ToLowerInvariant().Contains(textToSearch)) ||
+                    r.Homepage != null && r.Homepage.ToLowerInvariant().Contains(textToSearch) ||
+                    r.Description != null && r.Description.ToLowerInvariant().Contains(textToSearch) ||
+                    r.FullName != null && r.FullName.ToLowerInvariant().Contains(textToSearch) ||
+                    r.HtmlUrl != null && r.HtmlUrl.ToLowerInvariant().Contains(textToSearch) ||
+                    r.License is {Name: { } } && r.License.Name.ToLowerInvariant().Contains(textToSearch) ||
+                    r.Language != null && r.Language.ToLowerInvariant().Contains(textToSearch)).ToList();
+                _totalItems = _repositories.Count;
+                _loading = false;
+            }
+            while (_queued);
+            await InvokeAsync(StateHasChanged);
+        }
+        else
+        {
+            Reset();
+        }
+    }
+
+    private async Task LoadRepositoriesForSpecificLanguageAsync()
+    {
+        _repositories = _originalRepositories.Where(r => r.Language != null && r.Language.ToLowerInvariant().Contains(_selectedLanguage.ToLowerInvariant())).ToList();
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task LoadRepositoriesBasedOnSortType()
+    {
+        if (_sortType.Equals("Name"))
+        {
+            _repositories = _repositories.OrderByDescending(r => r.Name).ToList();
+        } else if (_sortType.Equals("Stars"))
+        {
+            _repositories = _repositories.OrderByDescending(r => r.StargazersCount).ToList();
+        } else if (_sortType.Equals("Issues"))
+        {
+            _repositories = _repositories.OrderByDescending(r => r.OpenIssues).ToList();
+        } else if (_sortType.Equals("Activity"))
+        {
+            _repositories = _repositories.OrderByDescending(r => r.InnerSourceMetadata.Score).ToList();
+        } else if (_sortType.Equals("Watchers"))
+        {
+            _repositories = _repositories.OrderByDescending(r => r.WatchersCount).ToList();
+        }
+        await InvokeAsync(StateHasChanged);
     }
 
 }
