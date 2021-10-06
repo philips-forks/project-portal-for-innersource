@@ -38,7 +38,7 @@ function updateContent (sDisplay, sResult, aItems) {
 	window.document.getElementById((sDisplay === "card" ? "card" : "row") + "s").innerHTML = sResult;
 
 	// update result count in search placeholder
-	window.document.getElementById("search").labels[0].innerText = `Search ${aItems.length} projects...`;
+	window.document.getElementById("search").labels[0].innerText = `Search ${aItems.length}+ projects...`;
 
 	// replace broken images with a	default image
 	registerFallbackImage(window.document);
@@ -268,11 +268,7 @@ function showModal (vRepoId, oEvent) {
 	}
 	const oRepo = window._globals.allRepos.filter(oRepo => oRepo.id === vRepoId).pop();
 
-	let sLogoURL = oRepo._InnerSourceMetadata && oRepo._InnerSourceMetadata.logo
-		? oRepo._InnerSourceMetadata.logo.startsWith("http") || oRepo._InnerSourceMetadata.logo.startsWith("./")
-			? oRepo._InnerSourceMetadata.logo
-			: "data/" + oRepo._InnerSourceMetadata.logo + (oRepo._InnerSourceMetadata.logo.split(".").pop() === "svg" ? "?sanitize=true" : "")
-		: oRepo.owner.avatar_url;
+	let sLogoURL = "https://avatars.githubusercontent.com/u/57478301?s=200&v=4";
 
 	let sTitle = oRepo._InnerSourceMetadata && oRepo._InnerSourceMetadata.title
 		? oRepo._InnerSourceMetadata.title
@@ -348,11 +344,7 @@ function showModal (vRepoId, oEvent) {
 
 // fills the HTML template for a project item
 function generateItem (sDisplay, oRepo) {
-	let sLogoURL = oRepo._InnerSourceMetadata && oRepo._InnerSourceMetadata.logo
-		? oRepo._InnerSourceMetadata.logo.startsWith("http") || oRepo._InnerSourceMetadata.logo.startsWith("./")
-			? oRepo._InnerSourceMetadata.logo
-			: "data/" + oRepo._InnerSourceMetadata.logo + (oRepo._InnerSourceMetadata.logo.split(".").pop() === "svg" ? "?sanitize=true" : "")
-		: oRepo.owner.avatar_url;
+	let sLogoURL = "https://avatars.githubusercontent.com/u/57478301?s=200&v=4";
 
 	let sTitle = oRepo._InnerSourceMetadata && oRepo._InnerSourceMetadata.title
 		? oRepo._InnerSourceMetadata.title
